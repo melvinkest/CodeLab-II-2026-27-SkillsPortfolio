@@ -13,6 +13,7 @@ DIFFICULTY_LEVELS = {
     1: ("Easy", 1, 9),              # single-digit numbers
     2: ("Medium", 10, 99),          # double-digit numbers
     3: ("Hard", 1000, 9999),        # four-digit numbers
+    4: ("Extreme", 10000, 99999999),        # five-digit numbers to eight-digit numbers
 }
 
 PREFERRED_FONT = "Inter"     # the font the quiz is designed for
@@ -43,11 +44,6 @@ ICON_PNG = {
 
 
 def setIcon(root):
-    """Set the window icon.
-
-    The images are returned so the caller can keep references to them;
-    otherwise Tkinter discards them and the icon disappears.
-    """
     images = [tk.PhotoImage(data=data) for data in ICON_PNG.values()]
     root.iconphoto(False, *images)
     return images
@@ -59,14 +55,12 @@ DWMWA_TEXT_COLOR = 36
 
 
 def colourRef(hexColour):
-    """Convert '#RRGGBB' into the 0x00BBGGRR number that Windows expects."""
     hexColour = hexColour.lstrip("#")
     red, green, blue = (int(hexColour[i:i + 2], 16) for i in (0, 2, 4))
     return red | (green << 8) | (blue << 16)
 
 
 def styleTitleBar(root, background, text):
-    """Colour the Windows title bar to match the app. Does nothing on other systems."""
     if sys.platform != "win32":
         return
     root.update()                        
@@ -87,11 +81,7 @@ def styleTitleBar(root, background, text):
 
 
 def chooseFont(root):
-    """Return Inter if it is installed on this computer, otherwise the fallback font.
-
-    Tkinter silently substitutes another font for a missing one, so the check
-    is made here, where the choice stays predictable.
-    """
+    """Return Inter if it is installed on this computer, otherwise the fallback font."""
     installed = set(tkfont.families(root))
     return PREFERRED_FONT if PREFERRED_FONT in installed else FALLBACK_FONT
 
