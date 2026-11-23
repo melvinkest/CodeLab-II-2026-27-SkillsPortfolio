@@ -1,57 +1,76 @@
 import ctypes
+import os
 import random
 import sys
 import tkinter as tk
 import tkinter.font as tkfont
+from tkinter import messagebox, ttk
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 QUESTIONS_PER_QUIZ = 10
 FIRST_ATTEMPT_POINTS = 10
 SECOND_ATTEMPT_POINTS = 5
-MAX_SCORE = QUESTIONS_PER_QUIZ * FIRST_ATTEMPT_POINTS   
+MAX_SCORE = QUESTIONS_PER_QUIZ * FIRST_ATTEMPT_POINTS
 
+# level number -> (name, smallest value, largest value)
 DIFFICULTY_LEVELS = {
-    1: ("Easy", 1, 9),              # single-digit numbers
-    2: ("Medium", 10, 99),          # double-digit numbers
-    3: ("Hard", 1000, 9999),        # four-digit numbers
-    4: ("Extreme", 10000, 99999999),        # five-digit numbers to eight-digit numbers
+    1: ("Easy", 1, 9),
+    2: ("Medium", 10, 99),
+    3: ("Hard", 1000, 9999),
+    4: ("Extreme", 10000, 99999),           
 }
 
-PREFERRED_FONT = "Inter"     # the font the quiz is designed for
-FALLBACK_FONT = "Segoe UI"   # used when Inter is not installed
+# Seconds allowed for each question (both attempts share the same time).
+TIME_LIMITS = {1: 15, 2: 15, 3: 10, 4: 10}
+
+# The second number in × and the divisor in ÷ are whole numbers in this range.
+MULTIPLIER_RANGE = (2, 12)
+
+PREFERRED_FONT = "Google Sans"  # the font the quiz is designed for
+FALLBACK_FONT = "Segoe UI"      # used if Google Sans cannot be loaded or installed
 FONT = PREFERRED_FONT        # replaced at start-up with the font actually used
 
-# Colours
-BACKGROUND = "#ffffff"       # window and display area
-KEY = "#f0f0f0"              # ordinary keys
-KEY_HOVER = "#e2e2e2"        # an ordinary key under the mouse
-ACCENT = "#0067c0"           # the blue action key (Submit, Next, Yes) and the grade
-ACCENT_HOVER = "#1975cc"     # the blue key under the mouse
-ACCENT_TEXT = "#ffffff"      # white text on the blue key
-TEXT = "#1a1a1a"
-MUTED = "#6b6b6b"            # secondary text, such as the score line
-GOOD = "#107c10"             # feedback for a correct answer
-BAD = "#c42b1c"              # feedback for a wrong answer
-WARNING = "#9d5d00"          # feedback for invalid input
-INPUT_FILL = "#ffffff"       # text box background
-INPUT_BORDER = "#b0b0b0"     # text box outline when not focused
+# The Sun Valley theme: its folder name. The mode (light or dark) can be switched in the app.
+THEME_DIR = "sun-valley"
+
+# Colours for each mode.
+PALETTES = {
+    "light": {"background": "#fafafa", "text": "#202020", "muted": "#5c5c5c",
+              "accent": "#2f60d8", "good": "#107c10", "bad": "#c42b1c", "warning": "#9d5d00"},
+    "dark": {"background": "#1c1c1c", "text": "#ffffff", "muted": "#a0a0a0",
+             "accent": "#60cdff", "good": "#6ccb5f", "bad": "#ff99a4", "warning": "#ffc857"},
+}
+
+# Text colours are ttk styles, so switching mode recolours every label at once.
+ROLE_STYLES = {
+    "text": "TLabel",
+    "muted": "Muted.TLabel",
+    "accent": "Accent.TLabel",
+    "good": "Good.TLabel",
+    "bad": "Bad.TLabel",
+    "warning": "Warning.TLabel",
+}
 
 # The window icon as PNG images at 16, 32 and 64 pixels.
 ICON_PNG = {
-    16: "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAB+klEQVR4nKWSsUtVYRjGf+93ztX0qlREpURTDRUYRETQoA1GJjQEFgTl1NZY0XaJhrb+haDVoTVCKA2dGqJQoqBJixC9cq73XM/5zvmehrxWYDr0wrc8fO+Ph/d54D/HthNVk7NHFuYndL/TuLmaEuWeyOco8yQuQLLBbOjn4baA9sxPaCmCImmx5D0u80Sh4GwsWF5nI805Eu/iL1GggVgEnIm4CAyWgQ6gDrAjwESMUcf4LhFtak+zwADG2BZANTlOYUz+WnxzEhteQJ+MUI24lIgR5zAZvoRGxejNYd0ZfscbfLylE9WIseUmnb5Aec5wb8TISsrnZs7dazNM2aaDo8QcW1tFWcneosS3PM0eSN/WeXd90so2dOqyptOM9OprG60NKTbV1F2I93GF40UL6k1ebeQc2uM4bQG+JcytLjLU6iK68tKy54OqHj7IwNo+vo5PEmJ66SZhf5kTUs8PiQUHL1LPE5X0IQ5cnLYCKEB2+4M1gS9tR44cAb4MuK6YfnNcKMW5joi+UpiM7M9chKyGXFuJyTCg6gx8QCYiZ4wCruLARM/f1TAB+u0AEoM5c+ReBDPOYHS0CtaARDCzFfX2XZGjBq2c2c4K51cSbjQC0zShKxAGntnyTlGjcUUAjQd6XL+nOzt+/icEbRVK44okWfvttvsTZSH45eF4P/gAAAAASUVORK5CYII=",
-    32: "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFD0lEQVR4nK2WXYhdVxXHf2vvc8+dzCQz8SONFaki+PFQ0GAftAgzJZgGRIrFKIit0gctfQloTEXQk/so0oc8GuxjI5i3qg9q00n03Q+Q0OpDi1JiMm06M5l7595z9tp/H86dybTNNZk7+cNhcz7WWf+9Pv5rG3vA8qIKloBLu7Nbuowbpr34vmewaYyEDMGVb/N0GfjcxghLGfMM2cEdPEMar+6QHZEhwxspcvbxi/aWkBW7db68qMIuW3rlKZ2+fz8/W92EuXLs1CEZeBjfB1CGHCBFaBJ0Da71+XyFjlPBrgms3EebO+NLN2u83xBnC5CBAsRMG1drn602yB0fR0L9jMn4wscWmbeere6awDbEqIxEwZW1mj8oYUkoebvrOoFEB/FkNA44LXEzDKMpvU3/9ASAoq2gq5Z5KUEQZARuQABPdDG+amIWyCYCEBG2VX1TE8hQ9BuY63D0/fs5mtKtgktb9ZBhdbONxkwgDoBhetcmpiVgIncjrIz41/qQP3nbBUpt6EkJXOBOdCekTHbnkx3j4drY1oDpCYB3IgCvuTif1aYgGkrjFChByOCZaMIRx4vIwxJ5zynA6G7UeDSOHexybLvnw3ilbT+Pt/Rg2MCgIRt0BmnKIjx0vTWU+PdCl3izhkG6JT5ba53IyfHshG1hytiBDuGGc2NhnY2phGjpEi6T/S1TrWxyf2E8OGzDbJ4hqV0Fh2cKOhtOxghmKMBg6LwaxKmvXbFalcK2FAsZFfFOBC4BB65iD52zBuDqtzT3SsS33ncH2Jub2HzBR9XwQmkcWR0ymot01xpOPfayPbfzf1PNgrvFS1/RYUv8GfEJMmkj8fRjL9vz/zih8sELVgMUkszMpEozbjyRMx8e1pDbfJo7noVlR7VjSgQXyo6CYf0Rf/3MC/ZiVSmc6Y3VDlheJD7yG7v226M6XkYuH+rykX5DDbBynbwdAVUK9FCu+FU4wDfYBHJ7KYFFILX3dQP9Mbk0FhwTXB/wvSPn7ZxOKNoF207Hr08ofv2C+YuL+vT+GR5tMr989I/Wb6eEbZNFZzXvb/NGhJnNGrljnsmlUQwbfi/xw/6ID0bjecQDmw3yREiZNBspV0dcPHLejm053JmGCoUelpmAALB2gwLRIAqgwIhFoJPE+to8j9fOj8sOnx0lnpkp6AgiRoHREQSMNMlBD8tVpbC8qPHMvA2BhZmd42E8TQ1Lju1b5bkPHeSbWXy8gbWtb95xntL/L+Zez/Ijly1xm2PYJB2wpp3rC4fneebNdX5Xwk8WSi7WjhB2r9onTHoxdtDgeMr8YtM5fWiWhwYNbjbZbrfYGYH3nlJF3KgJwMkAD6wMyGZEvftLu43tXaLdyRCz9jfvrFZDZYRg/F3Ga2XAgKx24gqQRDbdWUEnoVBbmQNgSJeDJLZOdQBxfUQWnIxG3EwQjYiBGSQR93ex9Zq34Nag2l0EThCsZ0OJk9n5Twjtzmi3msuCUEaii0ESAxcDzwyS6HcC/beH/CUYPSFbWmJiv09CK0TIDNPVH2juffs4VUbOrA8YzUS6g5rXRw1PNTX/BOg3Lbl9BZoF7jvHf2/XXruGKpUAG8/qOzqjZuNZ5f5pXVs5qU/dybaqNHVX7DTMQkYgMksRjJuDmi8fOmuv6rvqCFlVKUiynRfIer3JUnvXGBcjaz/SB5qf6uc3vq8vAixX2tPRfW+k9hDau8V72mbHySjbvQjtHfA/7MrNN81eU9gAAAAASUVORK5CYII=",
-    64: "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",
+    16: "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAC+ElEQVR4nE2TT2jcVRzEP9/3e/tLdtOlMdH0YCyhRI0pVMVrEaT1pBBQt4qW2JYiHgVFDE26DVJaEA+CBykGBeu/5CBKTxYvntqTtkhtkSZtUkUa08Zskt3s7703HhLRgTnOzGFmDABkCDDTcP3GsPnyEVLcR4oPAOCyeTP7gZimfpm8/yqSYQAm93/xIxM3T5jLL5i5N53xWObozRy9zngc59+Ss4vDx29MYCbqJwxkVptWNlMjDR27/mWpet+LYXURR4qtAmsVyQR0lkzlkilZlvmuewmrt7/49eTgwdo0zgCGxq4cL23bMdlu3G5nRmmtnezBHR08MVDBGfw03+TqHxtUclMURV7ty9uNP8evnd590obeufIQ6DI47whutSXbv7vKh6M7KecOgHYQb3y+wLmfl6l2OiXzCaW2o7XHKbRftyzvUGihFC3FgsNP9lLOHZPf3OLtr+bJvXFobw+kgFI0FS0sy8sh2GteCvtVNEWKFgWVEox/PUc5z7h4vcHo3j4AVpqBFAMkQcK2NE97xdCfJCNF/sXCXwWNZuSZR3s49dIAi42C9767ibeIIkjJFGRKod+TApJA/xmUzKh2iA9eHaScO55//xKXbzbornhiLABhgGLEKxW3XOa6UwzCMAOCoOSMsz/+zuJKm0tzd+kue0IotnaHzHmUigVHiOcxMxREiihFlAJGZK0VCCFR9iKEACluUkGAofS9S0ofxdZKS4BSIVNkY6NNf0+JsecGOXVwiErOZroCioUExI3GulM6YwC7jp4b99t63y3W7rQNlczMYhJP7eljtRm4cG2J3DskCazwXT15WF8amz3z7GmjNp0xcyDtOvrt2ax8z8uxuYykCNhqK5gz6Or0kpA5l2Wd2wnrdz+bmxoZpTadOWZqiXrdZj8eeaVYuzMB9rfzeWbOue0Vb9WyN8w55/MMsRzWlo7NTY2MUq87Zg4k22rOkMBMA0emHzbLD4P2KcWdAObcvJk7TwifzH76wm+bdzYA/QPFipqcL1JO3QAAAABJRU5ErkJggg==",
+    32: "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",
+    64: "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",
 }
 
 
 def setIcon(root):
+    """Set the window icon."""
     images = [tk.PhotoImage(data=data) for data in ICON_PNG.values()]
     root.iconphoto(False, *images)
     return images
 
 
-DWMWA_USE_IMMERSIVE_DARK_MODE = 20   
-DWMWA_CAPTION_COLOR = 35             
-DWMWA_TEXT_COLOR = 36                
+# Windows draws the title bar through the Desktop Window Manager (DWM).
+DWMWA_USE_IMMERSIVE_DARK_MODE = 20   # dark title bar 
+DWMWA_CAPTION_COLOR = 35             # title bar colour 
+DWMWA_TEXT_COLOR = 36                # title text colour
 
 
 def colourRef(hexColour):
@@ -60,10 +79,10 @@ def colourRef(hexColour):
     return red | (green << 8) | (blue << 16)
 
 
-def styleTitleBar(root, background, text):
+def styleTitleBar(root, background, text, dark):
     if sys.platform != "win32":
         return
-    root.update()                        
+    root.update()                        # make sure the window exists before asking for it
     user32 = ctypes.windll.user32
     dwmapi = ctypes.windll.dwmapi
     user32.GetParent.restype = ctypes.c_void_p
@@ -72,18 +91,71 @@ def styleTitleBar(root, background, text):
 
     def setAttribute(attribute, value):
         data = ctypes.c_int(value)
+        # Older Windows versions don't know every attribute and return an error code.
         dwmapi.DwmSetWindowAttribute(ctypes.c_void_p(frame), attribute,
                                      ctypes.byref(data), ctypes.sizeof(data))
 
-    setAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE, 0)       # always a light title bar
+    setAttribute(DWMWA_USE_IMMERSIVE_DARK_MODE, 1 if dark else 0)
     setAttribute(DWMWA_CAPTION_COLOR, colourRef(background))
     setAttribute(DWMWA_TEXT_COLOR, colourRef(text))
 
 
-def chooseFont(root):
-    """Return Inter if it is installed on this computer, otherwise the fallback font."""
+FONT_DIR = os.path.join(HERE, "fonts")
+FONT_FILES = ["GoogleSans-Regular.ttf", "GoogleSans-Bold.ttf"]
+
+# A question must fit the window's width; its text is made smaller when it would not.
+QUESTION_MAX_WIDTH = 340     # pixels available for a question
+QUESTION_SIZE = 32           # the largest size for a question, in points
+QUESTION_MIN_SIZE = 18       # the smallest size for a question, in points
+
+
+def loadFonts():
+    if sys.platform != "win32":
+        return False
+    FR_PRIVATE = 0x10                    
+    loaded = True
+    for name in FONT_FILES:
+        path = os.path.abspath(os.path.join(FONT_DIR, name))
+        if not os.path.exists(path) or ctypes.windll.gdi32.AddFontResourceExW(path, FR_PRIVATE, 0) == 0:
+            loaded = False
+    return loaded
+
+
+def chooseFont(root, fontsLoaded):
     installed = set(tkfont.families(root))
-    return PREFERRED_FONT if PREFERRED_FONT in installed else FALLBACK_FONT
+    return PREFERRED_FONT if fontsLoaded or PREFERRED_FONT in installed else FALLBACK_FONT
+
+
+def fitQuestionSize(root, text):
+    for size in range(QUESTION_SIZE, QUESTION_MIN_SIZE - 1, -2):
+        measured = tkfont.Font(root=root, family=FONT, size=size, weight="bold").measure(text)
+        if measured <= QUESTION_MAX_WIDTH:
+            return size
+    return QUESTION_MIN_SIZE
+
+
+def loadTheme(root):
+    """Load the Sun Valley theme files. Returns False if they are not next to this program."""
+    tclFile = os.path.join(HERE, THEME_DIR, "sun-valley.tcl")
+    if not os.path.exists(tclFile):
+        return False
+    root.tk.call("source", tclFile.replace("\\", "/"))
+    return True
+
+
+def applyPalette(root, mode):
+    """Switch the theme to light or dark, then set the app's font and text colours."""
+    root.tk.call("set_theme", mode)
+
+    style = ttk.Style(root)
+    style.configure(".", font=(FONT, 10))
+    style.configure("TButton", font=(FONT, 12))
+    style.configure("Accent.TButton", font=(FONT, 12))
+
+    colours = PALETTES[mode]
+    for role, styleName in ROLE_STYLES.items():
+        if role != "text":
+            style.configure(styleName, foreground=colours[role])
 
 
 def randomInt(level):
@@ -92,9 +164,27 @@ def randomInt(level):
     return random.randint(low, high)
 
 
-def decideOperation():
-    """Return '+' for an addition question or '-' for a subtraction question."""
-    return random.choice(["+", "-"])
+def operationsFor(level):
+    """Easy uses addition and subtraction; Medium and above also use multiplication and division."""
+    return ["+", "-"] if level == 1 else ["+", "-", "×", "÷"]
+
+
+def makeQuestion(level):
+    """Return (first number, operation, second number, correct answer) for one question."""
+    operation = random.choice(operationsFor(level))
+    if operation == "×":
+        first, second = randomInt(level), random.randint(*MULTIPLIER_RANGE)
+        return first, operation, second, first * second
+    if operation == "÷":
+        # Choose the whole-number answer so that the dividend, which is shown, stays within
+        # the level's digits. Then the division always comes out exact.
+        divisor = random.randint(*MULTIPLIER_RANGE)
+        _, low, high = DIFFICULTY_LEVELS[level]
+        answer = random.randint(-(-low // divisor), high // divisor)     # -(-x // d) is ceil(x / d)
+        return answer * divisor, operation, divisor, answer
+    first, second = randomInt(level), randomInt(level)
+    answer = first + second if operation == "+" else first - second
+    return first, operation, second, answer
 
 
 def getGrade(score):
@@ -112,148 +202,26 @@ def getGrade(score):
     return "F"
 
 
-def roundedRectPoints(x1, y1, x2, y2, radius):
-    """Corner points for a rounded rectangle, drawn as a smooth polygon on a Canvas."""
-    r = min(radius, (x2 - x1) / 2, (y2 - y1) / 2)
-    return [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r,
-            x2, y2 - r, x2, y2, x2 - r, y2, x1 + r, y2,
-            x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
-
-
-def makeLabel(parent, text="", size=12, weight="normal", fg=TEXT, **options):
-    """A label that sits on the background."""
-    return tk.Label(parent, text=text, font=(FONT, size, weight),
-                    bg=BACKGROUND, fg=fg, **options)
-
-
-def keyStyle(style):
-    """Return (normal colour, colour under the mouse, text colour) for a key style."""
-    if style == "accent":
-        return ACCENT, ACCENT_HOVER, ACCENT_TEXT
-    return KEY, KEY_HOVER, TEXT
-
-
-class RoundedButton(tk.Canvas):
-    """A button drawn on a Canvas, so its corners can be rounded."""
-
-    def __init__(self, parent, text, command, style="key", size=13, radius=12, height=44):
-        normal, hover, textColour = keyStyle(style)
-        super().__init__(parent, height=height, bg=BACKGROUND, bd=0,
-                         highlightthickness=0, cursor="hand2")
-        self.buttonText = text
-        self.command = command
-        self.radius = radius
-        self.normalColour, self.hoverColour, self.textColour = normal, hover, textColour
-        self.fillColour = normal
-        self.enabled = True
-        self.shape = self.create_polygon(0, 0, 0, 0, smooth=True, splinesteps=24,
-                                         fill=normal, outline=normal)
-        self.label = self.create_text(0, 0, text=text, fill=textColour, font=(FONT, size))
-        self.bind("<Configure>", self.redraw)
-        self.bind("<Enter>", self.onEnter)
-        self.bind("<Leave>", self.onLeave)
-        self.bind("<Button-1>", self.onClick)
-
-    def redraw(self, event=None):
-        """Fit the rounded shape and the text to the current size."""
-        width, height = self.winfo_width(), self.winfo_height()
-        self.coords(self.shape, *roundedRectPoints(1, 1, width - 1, height - 1, self.radius))
-        self.coords(self.label, width / 2, height / 2)
-
-    def paint(self, colour):
-        self.fillColour = colour
-        self.itemconfig(self.shape, fill=colour, outline=colour)
-
-    def onEnter(self, event):
-        if self.enabled:
-            self.paint(self.hoverColour)
-
-    def onLeave(self, event):
-        if self.enabled:
-            self.paint(self.normalColour)
-
-    def onClick(self, event):
-        self.invoke()
-
-    def invoke(self):
-        """Run the button's command, as clicking a Tkinter button does."""
-        if self.enabled and self.command:
-            self.command()
-
-    def setEnabled(self, enabled):
-        """Grey the button out when it is unavailable, like a disabled calculator key."""
-        self.enabled = enabled
-        self.paint(self.normalColour if enabled else KEY)
-        self.itemconfig(self.label, fill=self.textColour if enabled else MUTED)
-
-
-class RoundedEntry(tk.Canvas):
-    """A text box drawn on a Canvas, with rounded corners and an accent outline when focused."""
-
-    def __init__(self, parent, size=20, radius=12, height=60):
-        super().__init__(parent, height=height, bg=BACKGROUND, bd=0, highlightthickness=0)
-        self.radius = radius
-        self.insetX, self.insetY = 12, 10            # keeps the text clear of the rounded corners
-        self.box = self.create_polygon(0, 0, 0, 0, smooth=True, splinesteps=24,
-                                       fill=INPUT_FILL, outline=INPUT_BORDER, width=1)
-        self.entry = tk.Entry(self, font=(FONT, size), bd=0, relief="flat",
-                              highlightthickness=0, bg=INPUT_FILL, fg=TEXT,
-                              insertbackground=TEXT, justify="right",
-                              disabledbackground=INPUT_FILL, disabledforeground=TEXT)
-        self.window = self.create_window(self.insetX, self.insetY, window=self.entry,
-                                         anchor="nw")
-        self.entry.bind("<FocusIn>", self.onFocusIn)
-        self.entry.bind("<FocusOut>", self.onFocusOut)
-        self.bind("<Configure>", self.redraw)
-
-    def redraw(self, event=None):
-        """Fit the rounded box and the text field to the current size."""
-        width, height = self.winfo_width(), self.winfo_height()
-        self.coords(self.box, *roundedRectPoints(1, 1, width - 1, height - 1, self.radius))
-        self.itemconfig(self.window, width=width - 2 * self.insetX,
-                        height=height - 2 * self.insetY)
-
-    def onFocusIn(self, event):
-        self.itemconfig(self.box, outline=ACCENT, width=2)
-
-    def onFocusOut(self, event):
-        self.itemconfig(self.box, outline=INPUT_BORDER, width=1)
-
-    def focus_set(self):
-        self.entry.focus_set()
-
-    def get(self):
-        return self.entry.get()
-
-    def setText(self, text):
-        self.entry.delete(0, tk.END)
-        self.entry.insert(0, text)
-
-    def clear(self):
-        self.entry.delete(0, tk.END)
-
-    def setEnabled(self, enabled):
-        self.entry.config(state="normal" if enabled else "disabled")
-
-
-def makeKey(parent, text, command, style="key", size=13):
-    """A rounded, calculator-style button that darkens slightly under the mouse."""
-    return RoundedButton(parent, text, command, style=style, size=size)
-
-
-def disableKey(button):
-    """Grey a key out so it looks unavailable, like a disabled calculator key."""
-    button.setEnabled(False)
+def makeLabel(parent, text="", size=12, weight="normal", role="text", **options):
+    return ttk.Label(parent, text=text, font=(FONT, size, weight),
+                     style=ROLE_STYLES[role], **options)
 
 
 class MathsQuizApp:
-    def __init__(self, root):
+    def __init__(self, root, mode="light"):
         self.root = root
-        root.title("Maths Quiz")
+        root.title("Quiz")
         root.minsize(380, 480)
-        root.configure(bg=BACKGROUND)
+        self.mode = mode
+        self.timerId = None
 
-        self.container = tk.Frame(root, padx=20, pady=20, bg=BACKGROUND)
+        self.header = ttk.Frame(root, padding=(20, 0, 20, 12))
+        self.header.pack(side="bottom", fill="x")
+        self.darkVar = tk.BooleanVar(root, value=(mode == "dark"))
+        ttk.Checkbutton(self.header, text="Dark mode", style="Switch.TCheckbutton",
+                        variable=self.darkVar, command=self.toggleTheme).pack(side="right")
+
+        self.container = ttk.Frame(root, padding=20)
         self.container.pack(fill="both", expand=True)
 
         self.level = 1
@@ -263,31 +231,49 @@ class MathsQuizApp:
         self.problemText = ""
         self.correctAnswer = 0
         self.questionAnswered = False
+        self.timeLimit = TIME_LIMITS[1]
+        self.timeLeft = self.timeLimit
 
         self.displayMenu()
 
-        self.icons = setIcon(root)                  
-        styleTitleBar(root, BACKGROUND, TEXT)
+        self.icons = setIcon(root)                   
+        colours = PALETTES[mode]
+        styleTitleBar(root, colours["background"], colours["text"], dark=(mode == "dark"))
+
+    def toggleTheme(self):
+        """Switch between light and dark mode. The current screen and any timer carry on."""
+        self.mode = "dark" if self.darkVar.get() else "light"
+        applyPalette(self.root, self.mode)
+        colours = PALETTES[self.mode]
+        styleTitleBar(self.root, colours["background"], colours["text"], dark=(self.mode == "dark"))
 
     def clearScreen(self):
         """Remove every widget from the container so a new screen can be drawn."""
         for widget in self.container.winfo_children():
             widget.destroy()
 
+    def cancelTimer(self):
+        """Stop the countdown for the current question, if one is running."""
+        if self.timerId is not None:
+            self.root.after_cancel(self.timerId)
+            self.timerId = None
+
     def displayMenu(self):
         """Show the difficulty menu (at start-up, and after 'Yes' to play again)."""
+        self.cancelTimer()
         self.clearScreen()
         makeLabel(self.container, text="Difficulty Level", size=18,
                   weight="bold").pack(fill="x", pady=(10, 0))
         makeLabel(self.container, text="Select an option", size=12,
-                  fg=MUTED).pack(fill="x", pady=(4, 20))
+                  role="muted").pack(fill="x", pady=(4, 20))
         for level, (name, _, _) in DIFFICULTY_LEVELS.items():
-            makeKey(self.container, name,
-                    lambda lvl=level: self.startQuiz(lvl)).pack(fill="x", pady=4)
+            ttk.Button(self.container, text=name,
+                       command=lambda lvl=level: self.startQuiz(lvl)).pack(fill="x", pady=4)
 
     def startQuiz(self, level):
         """Reset the score and counters, then ask the first question."""
         self.level = level
+        self.timeLimit = TIME_LIMITS[level]
         self.score = 0
         self.questionNumber = 0
         self.nextQuestion()
@@ -299,43 +285,87 @@ class MathsQuizApp:
             self.displayResults(self.score)
             return
 
-        num1 = randomInt(self.level)
-        num2 = randomInt(self.level)
-        operation = decideOperation()
-        self.problemText = f"{num1} {operation} {num2} ="
-        self.correctAnswer = num1 + num2 if operation == "+" else num1 - num2
+        first, operation, second, answer = makeQuestion(self.level)
+        self.problemText = f"{first} {operation} {second} ="
+        self.correctAnswer = answer
         self.attempt = 1
         self.displayProblem()
 
     def displayProblem(self):
-        """Draw the current question and the answer box."""
+        """Draw the current question, its timer and the answer box."""
         self.clearScreen()
         self.questionAnswered = False
 
-        self.scoreLabel = makeLabel(self.container, size=10, fg=MUTED, anchor="w")
-        self.scoreLabel.pack(fill="x")
+        row = ttk.Frame(self.container)
+        row.pack(fill="x")
+        self.scoreLabel = makeLabel(row, size=10, role="muted")
+        self.scoreLabel.pack(side="left")
+        self.timerLabel = makeLabel(row, size=10, role="muted")
+        self.timerLabel.pack(side="right")
         self.updateScoreLabel()
 
-        makeLabel(self.container, text=self.problemText, size=32, weight="bold",
-                  anchor="e").pack(fill="x", pady=(30, 10))
+        self.timeLeft = self.timeLimit
+        self.timerBar = ttk.Progressbar(self.container, maximum=self.timeLimit, value=self.timeLeft)
+        self.timerBar.pack(fill="x", pady=(6, 0))
+        self.updateTimer()
+        self.startTimer()
 
-        self.answerEntry = RoundedEntry(self.container)
-        self.answerEntry.pack(fill="x", pady=(0, 10))
+        questionSize = fitQuestionSize(self.root, self.problemText)
+        makeLabel(self.container, text=self.problemText, size=questionSize, weight="bold",
+                  anchor="e").pack(fill="x", pady=(24, 10))
+
+        self.answerEntry = ttk.Entry(self.container, font=(FONT, 20), justify="right")
+        self.answerEntry.pack(fill="x", pady=(0, 10), ipady=6)
         self.answerEntry.focus_set()
-        self.answerEntry.entry.bind("<Return>", lambda event: self.submitAnswer())
+        self.answerEntry.bind("<Return>", lambda event: self.submitAnswer())
 
-        self.submitButton = makeKey(self.container, "Submit", self.submitAnswer, style="accent")
+        self.submitButton = ttk.Button(self.container, text="Submit", style="Accent.TButton",
+                                       command=self.submitAnswer)
         self.submitButton.pack(fill="x", pady=(0, 10))
 
-        self.feedbackLabel = makeLabel(self.container, size=12, height=2)
+        # The padding keeps room for the feedback message, so the layout does not jump.
+        self.feedbackLabel = makeLabel(self.container, size=12, padding=(0, 12))
         self.feedbackLabel.pack(fill="x")
 
         nextText = "See Results" if self.questionNumber == QUESTIONS_PER_QUIZ else "Next Question"
-        self.nextButton = makeKey(self.container, nextText, self.nextQuestion, style="accent")
+        self.nextButton = ttk.Button(self.container, text=nextText, style="Accent.TButton",
+                                     command=self.nextQuestion)
+
+        # Packed last, so it sits at the bottom; the Next button is packed above it later.
+        self.forfeitButton = ttk.Button(self.container, text="Forfeit quiz", command=self.forfeit)
+        self.forfeitButton.pack(fill="x", pady=(10, 0))
 
     def updateScoreLabel(self):
         self.scoreLabel.config(
             text=f"Question {self.questionNumber} of {QUESTIONS_PER_QUIZ}     Score: {self.score}")
+
+    def updateTimer(self):
+        """Show the seconds left; the message turns red in the last five seconds."""
+        role = "bad" if self.timeLeft <= 5 else "muted"
+        self.timerLabel.config(text=f"Time left: {self.timeLeft}s", style=ROLE_STYLES[role])
+        self.timerBar.config(value=self.timeLeft)
+
+    def startTimer(self):
+        """Start the countdown: one tick every second."""
+        self.cancelTimer()
+        self.timerId = self.root.after(1000, self.tick)
+
+    def tick(self):
+        self.timerId = None
+        self.timeLeft -= 1
+        self.updateTimer()
+        if self.timeLeft <= 0:
+            self.timeUp()
+        else:
+            self.timerId = self.root.after(1000, self.tick)
+
+    def timeUp(self):
+        """The time for this question has run out: show the answer and lock the question."""
+        self.setFeedback(f"Time's up! The answer was {self.correctAnswer}.", "bad")
+        self.finishQuestion()
+
+    def setFeedback(self, text, role):
+        self.feedbackLabel.config(text=text, style=ROLE_STYLES[role])
 
     def submitAnswer(self):
         """Read the typed answer and decide what happens next."""
@@ -346,14 +376,14 @@ class MathsQuizApp:
         try:
             userAnswer = int(text)
         except ValueError:
-            self.feedbackLabel.config(text="Please type a whole number.", fg=WARNING)
+            self.setFeedback("Please type a whole number.", "warning")
             return
 
         if self.isCorrect(userAnswer) or self.attempt == 2:
             self.finishQuestion()
         else:
             self.attempt = 2
-            self.answerEntry.clear()
+            self.answerEntry.delete(0, tk.END)
             self.answerEntry.focus_set()
 
     def isCorrect(self, userAnswer):
@@ -362,47 +392,61 @@ class MathsQuizApp:
             points = FIRST_ATTEMPT_POINTS if self.attempt == 1 else SECOND_ATTEMPT_POINTS
             self.score += points
             self.updateScoreLabel()
-            self.feedbackLabel.config(text=f"Correct! +{points} points", fg=GOOD)
+            self.setFeedback(f"Correct! +{points} points", "good")
             return True
 
         if self.attempt == 1:
-            self.feedbackLabel.config(text="Not quite. You have one more try!", fg=BAD)
+            self.setFeedback("Not quite. You have one more try!", "bad")
         else:
-            self.feedbackLabel.config(
-                text=f"Incorrect. The answer was {self.correctAnswer}.", fg=BAD)
+            self.setFeedback(f"Incorrect. The answer was {self.correctAnswer}.", "bad")
         return False
 
     def finishQuestion(self):
-        """Lock the answer box and show the Next button."""
+        """Stop the timer, lock the answer box and show the Next button."""
+        self.cancelTimer()
         self.questionAnswered = True
-        self.answerEntry.setEnabled(False)
-        disableKey(self.submitButton)
-        self.nextButton.pack(fill="x", pady=(5, 0))
+        self.answerEntry.config(state="disabled")
+        self.submitButton.config(state="disabled")
+        self.nextButton.pack(fill="x", pady=(5, 0), before=self.forfeitButton)
 
-    def displayResults(self, finalScore):
+    def forfeit(self):
+        """Give up the quiz, keeping the points scored so far."""
+        if messagebox.askyesno("Forfeit quiz", "Give up this quiz? Your score so far will be kept."):
+            self.displayResults(self.score, forfeited=True)
+
+    def displayResults(self, finalScore, forfeited=False):
         """Show the final score, the grade, and ask whether to play again."""
+        self.cancelTimer()
         self.clearScreen()
         grade = getGrade(finalScore)
 
-        makeLabel(self.container, text="Quiz Complete", size=20,
-                  weight="bold").pack(fill="x", pady=(10, 0))
+        makeLabel(self.container, text="Quiz Forfeited" if forfeited else "Quiz Complete",
+                  size=20, weight="bold").pack(fill="x", pady=(10, 0))
         makeLabel(self.container, text=f"Final score: {finalScore} / {MAX_SCORE}",
-                  size=16, fg=MUTED).pack(fill="x", pady=5)
+                  size=16, role="muted").pack(fill="x", pady=5)
         makeLabel(self.container, text=f"Grade: {grade}", size=28, weight="bold",
-                  fg=ACCENT).pack(fill="x", pady=15)
+                  role="accent").pack(fill="x", pady=15)
         makeLabel(self.container, text="Would you like to play again?",
                   size=12).pack(fill="x", pady=(15, 8))
 
-        buttons = tk.Frame(self.container, bg=BACKGROUND)
+        buttons = ttk.Frame(self.container)
         buttons.pack(fill="x")
-        makeKey(buttons, "Yes", self.displayMenu, style="accent").pack(
+        ttk.Button(buttons, text="Yes", style="Accent.TButton", command=self.displayMenu).pack(
             side="left", fill="x", expand=True, padx=(0, 4))
-        makeKey(buttons, "No", self.root.destroy).pack(
+        ttk.Button(buttons, text="No", command=self.root.destroy).pack(
             side="left", fill="x", expand=True, padx=(4, 0))
 
 
 if __name__ == "__main__":
+    fontsLoaded = loadFonts()
     root = tk.Tk()
-    FONT = chooseFont(root)
-    MathsQuizApp(root)
-    root.mainloop()
+    FONT = chooseFont(root, fontsLoaded)
+    if not loadTheme(root):
+        messagebox.showerror("Theme not found",
+                             "The Sun Valley theme files were not found. Put the "
+                             "'sun-valley' folder next to main.py and try again.")
+        root.destroy()
+    else:
+        applyPalette(root, "light")
+        MathsQuizApp(root)
+        root.mainloop()
