@@ -22,7 +22,7 @@ DIFFICULTY_LEVELS = {
 }
 
 # Seconds allowed for each question (both attempts share the same time).
-TIME_LIMITS = {1: 15, 2: 15, 3: 10, 4: 10}
+TIME_LIMITS = {1: 10, 2: 15, 3: 20, 4: 30}  # seconds
 
 # The second number in × and the divisor in ÷ are whole numbers in this range.
 MULTIPLIER_RANGE = (2, 12)
