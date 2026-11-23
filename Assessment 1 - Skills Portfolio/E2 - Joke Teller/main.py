@@ -7,7 +7,7 @@ import tkinter.font as tkfont
 from tkinter import messagebox
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-JOKES_FILE = os.path.join(HERE, "..", "Joke Teller", "randomJokes.txt")
+JOKES_FILE = os.path.join(HERE, "..", "E2 - Joke Teller", "randomJokes.txt")
 
 PREFERRED_FONT = "Inter"     # the font the app is designed for
 FALLBACK_FONT = "Segoe UI"   # used when Inter is not installed
