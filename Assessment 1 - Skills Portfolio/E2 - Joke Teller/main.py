@@ -1,10 +1,3 @@
-"""
-Exercise 2 - Alexa tell me a Joke
-
-A Tkinter joke teller styled with the Sun Valley theme, with a light and dark mode switch.
-The theme files are in the "sun-valley" folder, which must sit next to this file.
-"""
-
 import ctypes
 import os
 import random
@@ -16,30 +9,30 @@ from tkinter import messagebox, ttk
 HERE = os.path.dirname(os.path.abspath(__file__))
 JOKES_FILE = os.path.join(HERE, "..", "E2 - Joke Teller", "randomJokes.txt")
 
-PREFERRED_FONT = "Inter"     # the font the app is designed for
-FALLBACK_FONT = "Segoe UI"   # used when Inter is not installed
+PREFERRED_FONT = "Google Sans"  # the font the app is designed for
+FALLBACK_FONT = "Segoe UI"      # used if Google Sans cannot be loaded or installed
 FONT = PREFERRED_FONT        # replaced at start-up with the font actually used
 
-# The Sun Valley theme: the folder holding it. The mode can be switched in the app.
 THEME_DIR = "sun-valley"
 
-# Colours for each mode, matching the Sun Valley palettes.
+FONT_DIR = os.path.join(HERE, "fonts")
+FONT_FILES = ["GoogleSans-Regular.ttf", "GoogleSans-Bold.ttf"]
+
+# Colours for each mode.
 PALETTES = {
     "light": {"background": "#fafafa", "text": "#202020", "accent": "#2f60d8"},
     "dark": {"background": "#1c1c1c", "text": "#ffffff", "accent": "#60cdff"},
 }
 
-# Text colours are ttk styles, so switching mode recolours the text at once.
 ROLE_STYLES = {"text": "TLabel", "accent": "Accent.TLabel"}
 
 # Windows draws the title bar through the Desktop Window Manager (DWM).
-DWMWA_USE_IMMERSIVE_DARK_MODE = 20   # dark title bar (Windows 10 20H1 and later)
-DWMWA_CAPTION_COLOR = 35             # title bar colour (Windows 11)
-DWMWA_TEXT_COLOR = 36                # title text colour (Windows 11)
+DWMWA_USE_IMMERSIVE_DARK_MODE = 20   
+DWMWA_CAPTION_COLOR = 35             
+DWMWA_TEXT_COLOR = 36                
 
 
 def colourRef(hexColour):
-    """Convert '#RRGGBB' into the 0x00BBGGRR number that Windows expects."""
     hexColour = hexColour.lstrip("#")
     red, green, blue = (int(hexColour[i:i + 2], 16) for i in (0, 2, 4))
     return red | (green << 8) | (blue << 16)
@@ -54,7 +47,6 @@ def styleTitleBar(root, background, text, dark):
     dwmapi = ctypes.windll.dwmapi
     user32.GetParent.restype = ctypes.c_void_p
     user32.GetParent.argtypes = [ctypes.c_void_p]
-    # Tk's own window sits inside a Windows frame; the frame is what has the title bar.
     frame = user32.GetParent(root.winfo_id())
 
     def setAttribute(attribute, value):
@@ -68,14 +60,21 @@ def styleTitleBar(root, background, text, dark):
     setAttribute(DWMWA_TEXT_COLOR, colourRef(text))
 
 
-def chooseFont(root):
-    """Return Inter if it is installed on this computer, otherwise the fallback font.
+def loadFonts():
+    if sys.platform != "win32":
+        return False
+    FR_PRIVATE = 0x10                    # the font is available only to this program
+    loaded = True
+    for name in FONT_FILES:
+        path = os.path.abspath(os.path.join(FONT_DIR, name))
+        if not os.path.exists(path) or ctypes.windll.gdi32.AddFontResourceExW(path, FR_PRIVATE, 0) == 0:
+            loaded = False
+    return loaded
 
-    Tkinter silently substitutes another font for a missing one, so the check
-    is made here, where the choice stays predictable.
-    """
+
+def chooseFont(root, fontsLoaded):
     installed = set(tkfont.families(root))
-    return PREFERRED_FONT if PREFERRED_FONT in installed else FALLBACK_FONT
+    return PREFERRED_FONT if fontsLoaded or PREFERRED_FONT in installed else FALLBACK_FONT
 
 
 def loadTheme(root):
@@ -144,7 +143,7 @@ class JokeTellerApp:
         self.punchlineShown = False
         self.mode = mode
 
-        root.title("Alexa tell me a Joke")
+        root.title("Alexa")
 
         # The switch sits in a row at the bottom, so it is always visible.
         self.header = ttk.Frame(root, padding=(20, 0, 20, 12))
@@ -156,18 +155,22 @@ class JokeTellerApp:
         self.container = ttk.Frame(root, padding=20)
         self.container.pack(fill="both", expand=True)
 
+        self.titleLabel = makeLabel(self.container, text="Alexa", size=22, weight="bold",
+                                    anchor="w", justify="left")
+        self.titleLabel.pack(fill="x", pady=(10, 0))
+
         self.setupLabel = makeLabel(self.container, text="Press the button to hear a joke!",
-                                    size=15, wraplength=420, justify="center")
-        self.setupLabel.pack(pady=(25, 10))
+                                    size=15, wraplength=420, anchor="w", justify="left")
+        self.setupLabel.pack(fill="x", pady=(8, 10))
 
         self.punchlineLabel = makeLabel(self.container, text="", size=15, weight="bold",
-                                        role="accent", wraplength=420, justify="center")
-        self.punchlineLabel.pack(pady=(0, 20))
+                                        role="accent", wraplength=420, anchor="w", justify="left")
+        self.punchlineLabel.pack(fill="x", pady=(0, 20))
 
         buttons = ttk.Frame(self.container)
         buttons.pack()
 
-        self.tellButton = ttk.Button(buttons, text="Alexa tell me a Joke", style="Accent.TButton",
+        self.tellButton = ttk.Button(buttons, text="Tell me a joke", style="Accent.TButton",
                                      width=22, command=self.showNewJoke)
         self.punchlineButton = ttk.Button(buttons, text="Show Punchline", style="Accent.TButton",
                                           width=22, command=self.showPunchline)
@@ -220,8 +223,9 @@ class JokeTellerApp:
 
 
 if __name__ == "__main__":
+    fontsLoaded = loadFonts()
     root = tk.Tk()
-    FONT = chooseFont(root)
+    FONT = chooseFont(root, fontsLoaded)
     try:
         jokes = loadJokes(JOKES_FILE)
         if not jokes:
